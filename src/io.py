@@ -1,97 +1,123 @@
-from pathlib import Path
-from typing import Dict
 import pandas as pd
 import numpy as np
+from pathlib import Path
+from typing import Tuple
 from janitor import clean_names, remove_empty
 
 
 class DataLoadError(Exception):
-    """Raised when input files can't be parsed or schema invalid."""
+    pass
 
-def load_files(cv_path: str, eqcm_path: str) -> Dict[str, pd.DataFrame]:
-    """
-    Load a CV and an EQCM CSV and return them as a dict {'cv': df, 'eqcm': df}.
-    Performs minimal validation and normalizes column names.
-    """
-    cv_p = Path(cv_path)
-    eqcm_p = Path(eqcm_path)
 
-    if not cv_p.exists():
-        raise FileNotFoundError(f"CV file not found: {cv_path}")
-    if not eqcm_p.exists():
-        raise FileNotFoundError(f"EQCM file not found: {eqcm_path}")
+def load_files(
+    cv_path: Path, eqcm_path: Path
+) -> Tuple[pd.DataFrame, pd.DataFrame]:
+    """
+    Loads and cleans the CV (EC-Lab .txt) and EQCM (EQCM-Leiden script .csv)
+    data files and returns them as a dict {'cv': df, 'eqcm': df}.
+    """
+    cv_untrimmed = _clean_cv_data(cv_path)
+    eqcm_untrimmed = _clean_eqcm_data(eqcm_path)
+
+    cv, eqcm = _trim_data(cv_untrimmed, eqcm_untrimmed)
+
+    return (cv, eqcm)
+
+
+def _clean_cv_data(file_name: Path) -> pd.DataFrame:
+    required_cols = {
+        "time/s",  # absolute time
+        "Ewe/V",
+        "<I>/mA",
+        "cycle number",
+    }
 
     try:
-        cv = _clean_cv_data(cv_p)
+        cv_df = pd.read_csv(file_name, sep="\t")
     except Exception as e:
-        raise DataLoadError(f"CV couldn't load, did you export the right columns?\n\n{e}")
+        raise DataLoadError(f"Unable to load CV file.\n\n{e}")
+
+    if required_cols.issubset(cv_df.columns):
+        print("Found required columns")
+    else:
+        missing_cols = required_cols.difference(cv_df.columns)
+        raise DataLoadError(f"Missing columns in CV file:\n\n{missing_cols}")
+
     try:
-        eqcm = _clean_eqcm_data(eqcm_p)
+        cv_df = (
+            cv_df.pipe(clean_names)
+            .pipe(remove_empty)
+            .rename(
+                columns={
+                    "time_s": "timestamp_s",
+                    "ewe_v": "potential_V",
+                    "<i>_ma": "current_mA",
+                }
+            )
+            .assign(timestamp_s=lambda x: pd.to_datetime(x.timestamp_s))
+            .astype({"timestamp_s": "int64"})
+            .assign(timestamp_s=lambda x: x.timestamp_s / 1e9)
+            .astype({"cycle_number": "int"})
+        )
     except Exception as e:
-        raise DataLoadError(f"EQCM couldn't load, did you load the right file?\n\n{e}")
+        raise DataLoadError(f"Unable to parse CV data.\n\n{e}")
 
-    cv, eqcm = _trim_data(cv, eqcm)
-
-    # FIXME Handle missing columns
-
-    # if not required_cv.issubset(set(cv.columns)):
-    #     missing = required_cv - set(cv.columns)
-    #     raise DataLoadError(f"CV missing columns: {missing}")
-    # if not required_eqcm.issubset(set(eqcm.columns)):
-    #     missing = required_eqcm - set(eqcm.columns)
-    #     raise DataLoadError(f"EQCM missing columns: {missing}")
-
-    return {"cv": cv, "eqcm": eqcm}
-
-def _clean_cv_data(file_name):
-    """
-    Cleans EC-Lab's cv .mpr data, exported to .txt. Make sure you have
-    the !absolute! time_s, ewe_v, <i>_ma and cycle_number included.
-    """
-    cols = ['timestamp', 
-            'potential_we_V',
-            'current_mA',
-            'cycle_number']
-    cv_df = (
-        pd.read_csv(file_name, sep = '\t')
-        .pipe(clean_names)
-        .pipe(remove_empty)
-        .rename(columns={'time_s': 'timestamp', 'ewe_v': 'potential_we_V', \
-                '<i>_ma': 'current_mA'})
-        .assign(timestamp = lambda x: pd.to_datetime(x.timestamp))
-        .astype({'timestamp': 'int64'})
-        .assign(timestamp = lambda x: x.timestamp / 1e9)
-        .astype({'cycle_number': 'int'})
-        .reindex(columns = cols)
-    )
     return cv_df
 
 
-def _clean_eqcm_data(file_name):
-    """
-    Cleans the eqcm-leiden-v7 script EQCM data.
-    """
-    eqcm_df = (
-        pd.read_csv(file_name)
-        .pipe(clean_names)
-        .drop('time_elapsed_s_', axis = 1)
-        .assign(timestamp = lambda x: x.timestamp + 7200) # Timezone offset
-    )
+def _clean_eqcm_data(file_name: Path) -> pd.DataFrame:
+    required_cols = {"Timestamp", "Frequency"}
+
+    try:
+        eqcm_df = pd.read_csv(file_name, sep=",")
+    except Exception as e:
+        raise DataLoadError(f"Unable to load EQCM file.\n\n{e}")
+
+    if required_cols.issubset(eqcm_df.columns):
+        print("Found required columns")
+    else:
+        missing_cols = required_cols.difference(eqcm_df.columns)
+        raise DataLoadError(f"Missing columns in EQCM file:\n\n{missing_cols}")
+
+    try:
+        eqcm_df = (
+            eqcm_df.pipe(clean_names)
+            .drop("time_elapsed_s_", axis=1)
+            .assign(timestamp=lambda x: x.timestamp + 7200)  # Timezone offset
+            .assign(frequency_savgol_Hz=lambda x: x.frequency)
+            .rename(
+                columns={
+                    "timestamp": "timestamp_s",
+                    "frequency": "frequency_Hz",
+                }
+            )
+        )
+    except Exception as e:
+        raise DataLoadError(f"Unable to parse EQCM data.\n\n{e}")
+
     return eqcm_df
 
 
-def _trim_data(cv_df, eqcm_df):
-    """
-    Trims the data to when both the CV and EQCM are active.
-    """
-    trimmed_cv_df = cv_df.loc[cv_df["timestamp"] \
-            <= eqcm_df["timestamp"].iloc[-1]]
-    trimmed_eqcm_df = eqcm_df[eqcm_df["timestamp"] \
-            >= cv_df["timestamp"].iloc[0]]
-    trimmed_eqcm_df = trimmed_eqcm_df[trimmed_eqcm_df["timestamp"] \
-            <= cv_df["timestamp"].iloc[-1]]
+def _trim_data(
+    cv_df: pd.DataFrame, eqcm_df: pd.DataFrame
+) -> Tuple[pd.DataFrame, pd.DataFrame]:
+    trimmed_cv_df = cv_df.loc[
+        cv_df["timestamp_s"] <= eqcm_df["timestamp_s"].iloc[-1]
+    ]
+    trimmed_eqcm_df = eqcm_df[
+        eqcm_df["timestamp_s"] >= cv_df["timestamp_s"].iloc[0]
+    ]
+    trimmed_eqcm_df = trimmed_eqcm_df[
+        trimmed_eqcm_df["timestamp_s"] <= cv_df["timestamp_s"].iloc[-1]
+    ]
 
     trimmed_eqcm_df.index = np.arange(len(trimmed_eqcm_df))
 
-    return trimmed_cv_df, trimmed_eqcm_df
+    if len(trimmed_cv_df) == 0 or len(trimmed_eqcm_df) == 0:
+        raise DataLoadError(
+            "No concurrent measurement data.\n\n"
+            "Are the CV and EQCM files of the same experiment, "
+            "and is the exported CV timestamp in absolute time?"
+        )
 
+    return (trimmed_cv_df, trimmed_eqcm_df)

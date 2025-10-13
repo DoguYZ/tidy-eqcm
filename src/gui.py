@@ -1,17 +1,13 @@
 from src.widgets import InfoWindow
 from src.io import load_files, DataLoadError
+from src.plots import Plots
 from src.experiment import Experiment
 
-from PyQt6.QtCore import Qt
 from PyQt6.QtWidgets import (
-    QApplication,
     QMainWindow,
-    QPushButton,
     QVBoxLayout,
     QGridLayout,
     QWidget,
-    QFileDialog,
-    QLabel,
     QMessageBox,
 )
 
@@ -19,32 +15,40 @@ from PyQt6.QtWidgets import (
 class ApplicationWindow(QMainWindow):
     def __init__(self):
         super().__init__()
-        self.info = InfoWindow(main=self)
-        # self.info.filesSelected.connect(self._on_files_selected)
+        self.info = InfoWindow(main = self)
+        self.info.loadFiles.connect(self._on_load)
+        self.info.exportFiles.connect(self._on_save)
         self.info.show()
+
 
         self._main = QWidget()
         self.setCentralWidget(self._main)
-        vbox = QVBoxLayout(self._main)
-        grid = QGridLayout()
+        self.vbox = QVBoxLayout(self._main)
+        self.grid = QGridLayout()
+        self.vbox.addLayout(self.grid)
 
-        vbox.addLayout(grid)
+        self.experiment = None
 
-    def _on_files_selected(self, cv_path, eqcm_path):
+    def _on_load(self, cv_path, eqcm_path):
         try:
-            file_dict = load_files(cv_path, eqcm_path)
+            cv_eqcm_tuple = load_files(cv_path, eqcm_path)
         except DataLoadError as e:
             QMessageBox.warning(self, "Load error", str(e))
-            self.info.hide_export_rows()
-            return
-        except FileNotFoundError as e:
-            QMessageBox.critical(self, "File not found", str(e))
-            self.info.hide_export_rows()
             return
 
-        self.info.show_export_rows()
+        self.experiment = Experiment(cv_eqcm_tuple)
+        self.plots = Plots(self.grid, self.experiment)
+        self.plots.update_freq_pot()
+        self.plots.update_align()
+        self.plots.update_cv()
+        #self.plots.update_eqcm(self.experiment)
+        
+
+    def _on_save(self, export_cv_path, export_eqcm_path):
+        pass
 
     # Create Experiment using your existing class
     # self.experiment = expmod.Experiment(files)
     # continue with the post-load UI updates:
     # self._post_load_setup()
+

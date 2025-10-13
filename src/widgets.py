@@ -12,6 +12,7 @@ from PyQt6.QtWidgets import (
     QLineEdit,
     QPushButton,
     QFileDialog,
+    QMessageBox,
 )
 
 
@@ -23,6 +24,11 @@ class Technique(Enum):
 class IOType(Enum):
     INPUT = "input"
     OUTPUT = "output"
+
+
+class Overwrite(Enum):
+    TRUE = int("0x00000800", 16) # save
+    FALSE = int("0x00400000", 16) # cancel
 
 
 class InfoWindow(QWidget):
@@ -143,8 +149,8 @@ class InfoWindow(QWidget):
                     "",
                     "CSV files (*.csv)",
                 )
+                self.eqcm_path = Path(path)
                 ### wip
-                # self.eqcm_path = Path(path)
                 # self._store_eqcm_file_name = self._default_export_path(
                 #     self.eqcm_path
                 # )
@@ -158,9 +164,9 @@ class InfoWindow(QWidget):
             )
 
             if technique == Technique.CV:
-                self.export_cv_path = Path(path)
+                path = str(Path(path) / "clean_cv.csv")
             elif technique == Technique.EQCM:
-                self.export_eqcm_path = Path(path)
+                path = str(Path(path) / "clean_eqcm.csv")
 
         edit.setText(path)
 
@@ -169,6 +175,7 @@ class InfoWindow(QWidget):
         self._load_button.setEnabled(enabled)
         self._update_save_enabled()
 
+    # FIXME: only if files have been loaded
     def _update_save_enabled(self) -> None:
         enabled = bool(
             self._export_cv_edit.text()
@@ -178,12 +185,49 @@ class InfoWindow(QWidget):
         self._save_button.setEnabled(enabled)
 
     def _on_load(self) -> None:
-        self.loadFiles.emit(self.cv_path, self.eqcm_path)
+        if self.cv_path.exists() and self.eqcm_path.exists():
+            self.loadFiles.emit(self.cv_path, self.eqcm_path)
+        elif not self.cv_path.exists():
+            QMessageBox.warning(self, "tidy-eqcm", "CV file not found")
+        elif not self.eqcm_path.exists():
+            QMessageBox.warning(self, "tidy-eqcm", "EQCM file not found")
+        else:
+            QMessageBox.warning(self, "tidy-eqcm", "Files not found")
 
     def _on_save(self) -> None:
         self.export_cv_path = Path(self._export_cv_edit.text())
         self.export_eqcm_path = Path(self._export_eqcm_edit.text())
+        if self.export_cv_path.is_dir() or self.export_eqcm_path.is_dir():
+            QMessageBox.warning(
+                self,
+                "tidy-eqcm",
+                "Please enter a file name after the directory",
+            )
+            return
+        # make sure its a csv file
+        if (
+            self.export_cv_path.exists()
+            and self._ask_overwrite("CV") == Overwrite.FALSE
+        ):
+            return
+        if (
+            self.export_eqcm_path.exists()
+            and self._ask_overwrite("EQCM") == Overwrite.FALSE
+        ):
+            return
+
         self.exportFiles.emit(self.export_cv_path, self.export_eqcm_path)
+
+    def _ask_overwrite(self, technique: str) -> Overwrite:
+        msgBox = QMessageBox()
+        msgBox.setText(f"{technique} file exists. Overwrite?")
+        msgBox.setStandardButtons(
+            QMessageBox.StandardButton.Save | QMessageBox.StandardButton.Cancel
+        )
+        msgBox.setDefaultButton(QMessageBox.StandardButton.Cancel)
+        ret = msgBox.exec()
+
+        return Overwrite(ret)
 
     ### wip
     # def _default_export_path(

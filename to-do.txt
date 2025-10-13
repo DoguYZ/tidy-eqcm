@@ -1,0 +1,2 @@
+KEYBINDS:
+- Clicking plot 1
