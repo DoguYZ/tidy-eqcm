@@ -1,2 +1,34 @@
+CONSIDER:
+- movement and noise changes after fit: allowed or not?
+- saving whole set, not just selected cycle
+
+ADD:
+- add indicator that fit might be poor, for both drift and savgol
+- highlight points included in fit
+- exclude a point from drift
+
+CHECK/TEST:
+- time_diff correctly updating
+
 KEYBINDS:
 - Clicking plot 1
+- Q
+- H, L
+- U
+- WASD
+
+FILES:
+src/
+  gui.py
+    main gui
+  io.py
+    read/write files
+  plots.py
+    drawing the canvases, updating the figures
+  experiment.py
+    experiment class
+  transform.py
+    transform data (interp, +- timestamp, drift, noise)
+  widgets.py
+    choose file window, info window (key and stuff)
+
