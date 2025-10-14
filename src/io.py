@@ -3,6 +3,7 @@ import numpy as np
 from pathlib import Path
 from typing import Tuple
 from janitor import clean_names, remove_empty
+from src.experiment import ToyExperiment
 
 
 class DataLoadError(Exception):
@@ -24,6 +25,25 @@ def load_files(
     return (cv, eqcm)
 
 
+def export_files(
+    experiment: ToyExperiment, cv_save_path: Path, eqcm_save_path: Path
+) -> None:
+    current_cycle_cv = experiment.cv.loc[
+        experiment.cv.cycle_number == experiment.cycle_number
+    ]
+    next_cycle_head = experiment.cv.loc[
+        experiment.cv.cycle_number == experiment.cycle_number
+    ].head(3)
+    cv = pd.concat([current_cycle_cv, next_cycle_head])
+
+    eqcm = experiment.eqcm.loc[
+        experiment.eqcm["cycle_number"] == experiment.cycle_number
+    ]
+
+    cv.to_csv(cv_save_path, index=False)
+    eqcm.to_csv(eqcm_save_path, index=False)
+
+
 def _clean_cv_data(file_name: Path) -> pd.DataFrame:
     required_cols = {
         "time/s",  # absolute time
@@ -37,14 +57,12 @@ def _clean_cv_data(file_name: Path) -> pd.DataFrame:
     except Exception as e:
         raise DataLoadError(f"Unable to load CV file.\n\n{e}")
 
-    if required_cols.issubset(cv_df.columns):
-        print("Found required columns")
-    else:
+    if not required_cols.issubset(cv_df.columns):
         missing_cols = required_cols.difference(cv_df.columns)
         raise DataLoadError(f"Missing columns in CV file:\n\n{missing_cols}")
 
     try:
-        cv_df = (
+        cv_df_clean: pd.DataFrame = (
             cv_df.pipe(clean_names)
             .pipe(remove_empty)
             .rename(
@@ -62,7 +80,7 @@ def _clean_cv_data(file_name: Path) -> pd.DataFrame:
     except Exception as e:
         raise DataLoadError(f"Unable to parse CV data.\n\n{e}")
 
-    return cv_df
+    return cv_df_clean
 
 
 def _clean_eqcm_data(file_name: Path) -> pd.DataFrame:
@@ -73,14 +91,12 @@ def _clean_eqcm_data(file_name: Path) -> pd.DataFrame:
     except Exception as e:
         raise DataLoadError(f"Unable to load EQCM file.\n\n{e}")
 
-    if required_cols.issubset(eqcm_df.columns):
-        print("Found required columns")
-    else:
+    if not required_cols.issubset(eqcm_df.columns):
         missing_cols = required_cols.difference(eqcm_df.columns)
         raise DataLoadError(f"Missing columns in EQCM file:\n\n{missing_cols}")
 
     try:
-        eqcm_df = (
+        eqcm_df_clean: pd.DataFrame = (
             eqcm_df.pipe(clean_names)
             .drop("time_elapsed_s_", axis=1)
             .assign(timestamp=lambda x: x.timestamp + 7200)  # Timezone offset
@@ -95,7 +111,7 @@ def _clean_eqcm_data(file_name: Path) -> pd.DataFrame:
     except Exception as e:
         raise DataLoadError(f"Unable to parse EQCM data.\n\n{e}")
 
-    return eqcm_df
+    return eqcm_df_clean
 
 
 def _trim_data(
