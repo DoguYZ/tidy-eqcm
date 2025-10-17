@@ -6,13 +6,15 @@ GUI to easily clean up EQCM data. Still a work-in-progress, but should be functi
 - Remove the background drift on the EQCM with a polynomial fit
 
 ## Requirements
-I tested the script on python 3.13.5; if there's any sudden errors, please try running it on that version first. You need to install the following packages, using e.g. pip:
+I tested the script on python 3.13.5; if there's any sudden errors, please try running it on that version first. There also seems to be a bug when running it via anaconda/spyder, so download python from python.org. You need to install the following packages, using e.g. pip:
 - pandas
 - numpy
 - scipy
 - matplotlib
 - pyjanitor
 - pyqt6
+
+```pip install pandas numpy scipy matplotlib pyjanitor pyqt6```
 
 Afterwards, clone this repository and run main.py. Please let me know if you had to install any other packages.
 
@@ -69,6 +71,7 @@ Right now, the script only exports the cycle that you selected, making it very e
 - Add an indicator when the savgol filter or fit is bad (numpy/scipy warns you)
 - Add tests to ensure the program functions as intended
 - Show the keybindings in a separate window
+- Switch between cycles on keybind
 
 If you have other suggestions that would make the analysis easier/more user-friendly, let me know!
 
