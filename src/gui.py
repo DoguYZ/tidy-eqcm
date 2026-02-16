@@ -54,7 +54,7 @@ class ApplicationWindow(QMainWindow):
         self.plots = Plots(self.grid, main=self)
 
     def _on_save(self, export_cv_path: Path, export_eqcm_path: Path) -> None:
-        export_files(self.experiment_copy, export_cv_path, export_eqcm_path)
+        export_files_full_cycles(self.experiment_copy, export_cv_path, export_eqcm_path)
 
     def keyPressEvent(self, a0: Optional[QKeyEvent] = None) -> None:
         # check if an experiment is loaded
@@ -71,6 +71,12 @@ class ApplicationWindow(QMainWindow):
         if a0.key() == Qt.Key.Key_Q:
             self.close()
             self.info.close()
+        elif a0.key() == Qt.Key.Key_H and (a0.modifiers() & Qt.KeyboardModifier.ShiftModifier):
+            add_potential_and_cycle_number(self.experiment_copy, 10*-shift_amount)
+            self._update_all_plus_drift()
+        elif a0.key() == Qt.Key.Key_L and (a0.modifiers() & Qt.KeyboardModifier.ShiftModifier):
+            add_potential_and_cycle_number(self.experiment_copy, 10*+shift_amount)
+            self._update_all_plus_drift()
         elif a0.key() == Qt.Key.Key_H:
             add_potential_and_cycle_number(self.experiment_copy, -shift_amount)
             self._update_all_plus_drift()
