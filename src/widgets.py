@@ -134,6 +134,7 @@ class InfoWindow(QWidget):
                 path, _ = QFileDialog.getOpenFileName(
                     self,
                     "Select file",
+                    #"/var/home/dogukan/MEP/Data/",
                     "",
                     "TXT files (*.txt)",
                 )

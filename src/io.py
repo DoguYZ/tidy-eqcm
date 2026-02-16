@@ -2,7 +2,7 @@ import pandas as pd
 import numpy as np
 from pathlib import Path
 from typing import Tuple
-from janitor import clean_names, remove_empty
+#from janitor import clean_names, remove_empty
 from src.experiment import ToyExperiment
 
 
@@ -43,6 +43,13 @@ def export_files(
     cv.to_csv(cv_save_path, index=False)
     eqcm.to_csv(eqcm_save_path, index=False)
 
+def export_files_full_cycles(
+    experiment: ToyExperiment, cv_save_path: Path, eqcm_save_path: Path
+) -> None:
+
+    experiment.cv.to_csv(cv_save_path, index=False)
+    experiment.eqcm.to_csv(eqcm_save_path, index=False)
+
 
 def _clean_cv_data(file_name: Path) -> pd.DataFrame:
     required_cols = {
@@ -53,7 +60,7 @@ def _clean_cv_data(file_name: Path) -> pd.DataFrame:
     }
 
     try:
-        cv_df = pd.read_csv(file_name, sep="\t")
+        cv_df = pd.read_csv(file_name, sep="\t", decimal=".")
     except Exception as e:
         raise DataLoadError(f"Unable to load CV file.\n\n{e}")
 
@@ -63,13 +70,14 @@ def _clean_cv_data(file_name: Path) -> pd.DataFrame:
 
     try:
         cv_df_clean: pd.DataFrame = (
-            cv_df.pipe(clean_names)
-            .pipe(remove_empty)
-            .rename(
+            #cv_df.pipe(clean_names)
+            #.pipe(remove_empty)
+            cv_df.rename(
                 columns={
-                    "time_s": "timestamp_s",
-                    "ewe_v": "potential_V",
-                    "<i>_ma": "current_mA",
+                    "time/s": "timestamp_s",
+                    "Ewe/V": "potential_V",
+                    "<I>/mA": "current_mA",
+                    "cycle number": "cycle_number",
                 }
             )
             .assign(timestamp_s=lambda x: pd.to_datetime(x.timestamp_s))
@@ -97,14 +105,14 @@ def _clean_eqcm_data(file_name: Path) -> pd.DataFrame:
 
     try:
         eqcm_df_clean: pd.DataFrame = (
-            eqcm_df.pipe(clean_names)
-            .drop("time_elapsed_s_", axis=1)
-            .assign(timestamp=lambda x: x.timestamp + 7200)  # Timezone offset
-            .assign(frequency_savgol_Hz=lambda x: x.frequency)
+            #eqcm_df.pipe(clean_names)
+            eqcm_df.drop("Time Elapsed (s)", axis=1)
+            .assign(Timestamp=lambda x: x.Timestamp + 3600)  # Timezone offset
+            .assign(frequency_savgol_Hz=lambda x: x.Frequency)
             .rename(
                 columns={
-                    "timestamp": "timestamp_s",
-                    "frequency": "frequency_Hz",
+                    "Timestamp": "timestamp_s",
+                    "Frequency": "frequency_Hz",
                 }
             )
         )
